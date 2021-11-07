@@ -1,7 +1,8 @@
 from functools import reduce
-import hashlib
+import json
 from collections import OrderedDict
 from hash_util import hash_block, hash_string_256
+import pickle
 # Initializing our blockchain list
 MINING_REWARD = 10
 # initial block = genesis block
@@ -14,6 +15,40 @@ blockchain = [genesis_block]
 open_transactions = []
 owner = 'Sabin'
 participants = {'Sabin'}
+
+
+def load_data():
+    with open('blockchain.txt', mode='r') as f:
+        file_contents = f.readlines()
+        global blockchain
+        global open_transactions
+        # blockchain = file_contents['chain']
+        # open_transactions = file_contents['ot']
+        blockchain = json.loads(file_contents[0][:-1])
+        blockchain = [{'previous_hash': block['previous_hash'],
+                       'index': block['index'],
+                       'transactions': [OrderedDict(
+                           [('sender', tx['sender']), ('recipient', tx['recipient']), ('amount', tx['amount'])]) for tx in block['transactions']],
+                       'proof': block['proof']
+                       } for block in blockchain]
+        open_transactions = json.loads(file_contents[1])
+        open_transactions = [OrderedDict(
+                            [('sender', tx['sender']), ('recipient', tx['recipient']), ('amount', tx['amount'])]) for tx in open_transactions]
+
+
+load_data()
+
+
+def save_data():
+    with open('blockchain.txt', mode='w') as f:
+        f.write(json.dumps(blockchain))
+        f.write('\n')
+        f.write(json.dumps(open_transactions))
+        # data = {
+        #     'chain': blockchain,
+        #     'ot': open_transactions
+        # }
+        # f.write(pickle.dumps(data))
 
 
 def valid_proof(transactions, last_hash, proof):
@@ -65,22 +100,23 @@ def verify_transaction(transaction):
 
 
 def add_transaction(recipient, sender=owner, amount=1.0):
-    """Append a new value as well as the last blockchain value to the blockchain 
+    """Append a new value as well as the last blockchain value to the blockchain
 
-    Arguments: 
+    Arguments:
         :sender = The sender of the coin
 
         :receipient = The receiver of the coin
 
         :amount = The amount to be transfered (default = 1.0)
     """
-    #transaction = {'sender': sender, 'recipient': recipient, 'amount': amount}
+    # transaction = {'sender': sender, 'recipient': recipient, 'amount': amount}
     transaction = OrderedDict(
         [('sender', sender), ('recipient', recipient), ('amount', amount)])
     if verify_transaction(transaction):
         open_transactions.append(transaction)
         participants.add(sender)
         participants.add(recipient)
+        save_data()
         return True
     return False
 
@@ -170,6 +206,7 @@ while waiting_for_input:
         # Mine a block
         if mine_block():
             open_transactions = []
+            save_data()
     elif user_choice == '3':
         # Output the blockchain list to the console
         print_blockchain_elements()

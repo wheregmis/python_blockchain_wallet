@@ -1,5 +1,6 @@
 # Import two functions from our hash_util.py file. Omit the ".py" in the import
 from utility.hash_util import hash_string_256, hash_block
+from wallet import Wallet
 
 
 class Verification:
@@ -20,17 +21,20 @@ class Verification:
     @classmethod
     def verify_transactions(cls, open_transactions, get_balance):
         """Verifies all open transactions."""
-        return all([cls.verify_transaction(tx, get_balance) for tx in open_transactions])
+        return all([cls.verify_transaction(tx, get_balance, False) for tx in open_transactions])
 
     @staticmethod
-    def verify_transaction(transaction, get_balance):
+    def verify_transaction(transaction, get_balance, check_fund=True):
         """Verify a transaction by checking whether the sender has sufficient coins.
 
         Arguments:
             :transaction: The transaction that should be verified.
         """
-        sender_balance = get_balance()
-        return sender_balance >= transaction.amount
+        if check_fund:
+            sender_balance = get_balance()
+            return sender_balance >= transaction.amount and Wallet.verify_transaction(transaction)
+        else:
+            return Wallet.verify_transaction(transaction)
 
     @staticmethod
     def valid_proof(transactions, last_hash, proof):

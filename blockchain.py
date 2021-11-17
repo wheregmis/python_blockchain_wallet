@@ -7,6 +7,7 @@ from block import Block
 from utility.hash_util import hash_block
 from transaction import Transaction
 from utility.verification import Verification
+from wallet import Wallet
 
 # The reward we give to miners (for creating a new block)
 MINING_REWARD = 10
@@ -42,7 +43,7 @@ class Blockchain:
                 updated_blockchain = []
                 for block in blockchain:
                     converted_tx = [Transaction(
-                        tx['sender'], tx['recipient'], tx['amount']) for tx in block['transactions']]
+                        tx['sender'], tx['recipient'], tx['signature'], tx['amount']) for tx in block['transactions']]
                     updated_block = Block(
                         block['index'], block['previous_hash'], converted_tx, block['proof'], block['timestamp'])
                     updated_blockchain.append(updated_block)
@@ -52,7 +53,7 @@ class Blockchain:
                 updated_transactions = []
                 for tx in open_transactions:
                     updated_transaction = Transaction(
-                        tx['sender', tx['recipient'], tx['amount']])
+                        tx['sender'], tx['recipient'], tx['signature'], tx['amount'])
                     updated_transactions.append(updated_transaction)
                 self.__open_transactions = updated_transactions
         except (IOError, IndexError):
@@ -110,7 +111,7 @@ class Blockchain:
         # This fetches received coin amounts of transactions that were already included in blocks of the blockchain
         # We ignore open transactions here because you shouldn't be able to spend coins before the transaction was confirmed + included in a block
         tx_recipient = [[tx.amount for tx in block.transactions
-                        if tx.recipient == participant] for block in self.__chain]
+                         if tx.recipient == participant] for block in self.__chain]
         amount_received = reduce(lambda tx_sum, tx_amt: tx_sum + sum(tx_amt)
                                  if len(tx_amt) > 0 else tx_sum + 0, tx_recipient, 0)
         # Return the total balance
@@ -127,7 +128,8 @@ class Blockchain:
 # One required one (transaction_amount) and one optional one (last_transaction)
 # The optional one is optional because it has a default value => [1]
 
-    def add_transaction(self, recipient, sender, amount=1.0):
+
+    def add_transaction(self, recipient, sender, signature, amount=1.0):
         """ Append a new value as well as the last blockchain value to the blockchain.
 
         Arguments:
@@ -140,7 +142,9 @@ class Blockchain:
         #     'recipient': recipient,
         #     'amount': amount
         # }
-        transaction = Transaction(sender, recipient, amount)
+        if self.hosting_node == None:
+            return False
+        transaction = Transaction(sender, recipient, signature, amount)
         if Verification.verify_transaction(transaction, self.get_balance):
             self.__open_transactions.append(transaction)
             self.save_data()
@@ -149,6 +153,8 @@ class Blockchain:
 
     def mine_block(self):
         """Create a new block and add open transactions to it."""
+        if self.hosting_node == None:
+            return False
         # Fetch the currently last block of the blockchain
         last_block = self.__chain[-1]
         # Hash the last block (=> to be able to compare it to the stored hash value)
@@ -161,10 +167,13 @@ class Blockchain:
         #     'amount': MINING_REWARD
         # }
         reward_transaction = Transaction(
-            'MINING', self.hosting_node, MINING_REWARD)
+            'MINING', self.hosting_node, '', MINING_REWARD)
         # Copy transaction instead of manipulating the original open_transactions list
         # This ensures that if for some reason the mining should fail, we don't have the reward transaction stored in the open transactions
         copied_transactions = self.__open_transactions[:]
+        for tx in copied_transactions:
+            if not Wallet.verify_transaction(tx):
+                return False
         copied_transactions.append(reward_transaction)
         block = Block(len(self.__chain), hashed_block,
                       copied_transactions, proof)
